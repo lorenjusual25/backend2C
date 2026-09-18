@@ -14,6 +14,10 @@ Repositorio de entregas para la materia Programacion Backend II: Diseño y Arqui
 - mongoose
 - cookie-parser
 - jsonwebtoken
+- passport
+- passport-github2
+- passport-jwt
+- passport-local
 
 ## Instalación
 ```bash
@@ -46,7 +50,7 @@ npm run dev
 - `POST /api/sessions/login`
 - `POST /api/sessions/logout`
 - `GET /api/sessions/current`
-
+- `GET /api/sessions/github/callback`
 ## Flujo de datos
 Request → Router → Controller → Service → Repository → DAO → Model
 
@@ -58,7 +62,8 @@ backend2/
 │   ├── app.js
 │   ├── server.js
 │   ├── config/
-│   │   └── config.js
+│   │   ├── config.js
+|   |   └── passport.config.js
 │   ├── controllers/
 │   │   ├── event.controller.js
 │   │   └── session.controller.js
@@ -66,6 +71,8 @@ backend2/
 │   │   ├── event.dao.js
 │   │   ├── session.dao.js
 │   │   └── user.dao.js
+|   ├── dto/
+|   |   └── userDTO.js
 │   ├── middlewares/
 |   |   └── authentication.middleware.js
 │   │   └── error.middleware.js
@@ -82,7 +89,8 @@ backend2/
 │   │   └── session.router.js
 │   ├── services/
 │   │   ├── event.service.js
-│   │   └── session.service.js
+|   |   ├── session.service.js
+│   │   └── user.service.js
 │   └── utils/
 │       └── hash.js
 |       └── jwt.js
@@ -188,9 +196,7 @@ Response exitosa (`200 OK`):
     "payload": {
         "id": "ID_GENERADO_POR_MONGODB",
         "email": "bertram.garcia@example.com",
-        "role": "user",
-        "iat": 1725600000,
-        "exp": 1725603600
+        "role": "user"
     }
 }
 ```
@@ -228,6 +234,97 @@ Response exitosa (`200 OK`):
     "message": "Logout exitoso"
 }
 ```
+## Estrategias de autenticación (Passport)
+
+Passport se inicializa una sola vez en `src/app.js` mediante:
+
+```js
+app.use(passport.initialize())
+```
+
+Las estrategias se encuentran centralizadas en `src/config/passport.config.js`. De esta forma, las estrategias pueden ampliarse sin modificar la configuración principal de `app.js`.
+
+### Estrategia `register`
+
+La estrategia `register` utiliza `passport-local` y valida los datos recibidos en `POST /api/sessions/register`:
+
+- Comprueba los campos obligatorios.
+- Normaliza nombres, apellido y email.
+- Valida el formato del email.
+- Comprueba que el email no exista.
+- Hashea la contraseña antes de guardarla.
+- Asigna el rol `user` por defecto.
+
+La ruta delega la autenticación en Passport:
+
+```js
+router.post(
+    '/register',
+    passport.authenticate('register', { session: false }),
+    register
+)
+```
+
+La respuesta exitosa utiliza el usuario creado y no expone la contraseña.
+
+### Estrategia `login`
+
+La estrategia `login` también utiliza `passport-local`. Busca el usuario por email, compara la contraseña con el hash almacenado y rechaza las credenciales inválidas con un mensaje genérico.
+
+Ruta:
+
+```text
+POST /api/sessions/login
+```
+
+Después de una autenticación exitosa, el controlador genera un JWT con `id`, `email` y `role`, y lo envía en la cookie `currentUser`. La cookie se configura como `httpOnly`.
+
+### Estrategia `current`
+
+La estrategia `current` utiliza `passport-jwt`. Extrae el JWT desde la cookie `currentUser`, valida la firma con `JWT_SECRET` y busca nuevamente al usuario en la base de datos.
+
+Ruta protegida:
+
+```text
+GET /api/sessions/current
+```
+
+Si la cookie es válida, devuelve un DTO con los datos públicos del usuario (`id`, `email` y `role`). Sin una cookie válida, responde con `401 Unauthorized`.
+
+### Providers externos
+
+La configuración está preparada para incorporar providers externos sin modificar `app.js`: cada provider puede agregarse como una estrategia independiente dentro de `src/config/passport.config.js` y conectarse desde el router.
+
+Actualmente se encuentra configurada la estrategia de GitHub:
+
+```text
+GET /api/sessions/github
+GET /api/sessions/github/callback
+```
+
+La misma estructura permite incorporar Google u otro provider en el futuro, manteniendo sin cambios la inicialización de Passport en `app.js`.
+
+## Variables de entorno
+
+Copia `.env.example` como `.env` y completa los valores correspondientes:
+
+```env
+PORT=8080
+MONGO_URI=mongodb://localhost:27017/backend2
+JWT_SECRET=una-clave-secreta
+JWT_EXPIRES_IN=1h
+NODE_ENV=development
+```
+
+Para utilizar GitHub, agrega también las credenciales de la aplicación OAuth:
+
+```env
+GITHUB_CLIENT_ID=tu_client_id
+GITHUB_CLIENT_SECRET=tu_client_secret
+GITHUB_CALLBACK_URL=http://localhost:8080/api/sessions/github/callback
+```
+
+Estas variables no deben incluirse en el repositorio. El archivo `.env.example` solo debe contener nombres de variables y valores de ejemplo.
 
 ## Capturas de entregas
 ### Entrega 1
@@ -239,3 +336,9 @@ Response exitosa (`200 OK`):
 - ![captura de la respuesta de login respondiendo una cookie](img/login200conCookie.png)
 - ![captura de /current devolviendo 200 con cookie](img/current200conCookie.png)
 - ![caputra de /current devolviendo 401 sin cookie](img/current401sinCookie.png)
+### Entrega 4
+- ![captura de /register con status 200](img/register200.png)
+- ![captura de /login con status 200](img/login200.png)
+- ![captura de /current con status 200](img/current200.png)
+- ![captura de /logout con status 200](img/logout200.png)
+- ![captura de /current con status 401](img/current401.png)

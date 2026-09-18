@@ -1,13 +1,13 @@
 import { createHash } from "../utils/hash.js";
 import * as userRepository from '../repositories/user.repository.js'
-const longMinPass = 8
+const longMaxPass = 8
 class UserService {
-    async register({first_name,last_name,email,pwd}) {
+    async register({first_name,last_name,email,password}) {
         const normalFirst_name = first_name?.trim()
         const normalLast_name = last_name?.trim()
         const normalEmail = email?.trim().toLowerCase()
-        const password = pwd
-        if (!normalFirst_name || !normalLast_name || !normalEmail || !password) {
+        const psw = password
+        if (!normalFirst_name || !normalLast_name || !normalEmail || !psw) {
             const error = new Error("Faltan campos")
             error.status = 400
             throw error
@@ -19,8 +19,8 @@ class UserService {
             error.status = 400
             throw error
         }
-        if (password.length < longMinPass) {
-            const error = new Error(`La longitud minima de contraseña es de ${longMinPass}`)
+        if (psw.length > longMaxPass) {
+            const error = new Error(`La longitud maxima de contraseña es de ${longMaxPass}`)
             error.code = "PSW LENGTH EXCEEDED"
             error.status = 400
             throw error
@@ -36,7 +36,7 @@ class UserService {
             first_name:normalFirst_name,
             last_name:normalLast_name,
             email:normalEmail,
-            password:await createHash(password),
+            password:await createHash(psw),
             role:"user"
         }
         const newUser = await userRepository.addUser(user)
@@ -50,20 +50,12 @@ class UserService {
             providerId:null
         })
   }
-  // ======================================================
-  // GITHUB
-  // ======================================================
-    async registerGithubUser({first_name,last_name,email,providerId}) {
+async registerGithubUser({first_name,last_name,email,providerId}) {
     const normalizedEmail = email.trim().toLowerCase();
-    // Buscar usuario existente
     let user = await userRepository.findEmail(normalizedEmail);
-    // Si ya existe,
-    // simplemente lo devolvemos
     if (user) {
       return user;
     }
-    // Si no existe,
-    // creamos usuario GitHub
     user = await userRepository.addUser({
         first_name,
         last_name,

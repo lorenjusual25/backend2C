@@ -2,10 +2,10 @@ import passport from 'passport'
 import { Strategy as GitHubStrategy } from 'passport-github2'
 import { Strategy as LocalStrategy } from 'passport-local'
 import { Strategy as JwtStrategy,ExtractJwt } from 'passport-jwt'
-import { validatePassword } from '../utils/hash'
-import userDAO from '../dao/user.dao.js'
+import { validatePassword } from '../utils/hash.js'
+import * as userRepository from '../repositories/user.repository.js'
 import userService from '../services/user.service.js'
-passport.use("register",new LocalStrategy(
+passport.use('register',new LocalStrategy(
         {
             usernameField:"email",
             passwordField:"password",
@@ -27,14 +27,14 @@ passport.use("register",new LocalStrategy(
         }
     )
 )
-passport.user('login',new LocalStrategy(
+passport.use('login',new LocalStrategy(
     {
         usernameField:"email",
         passwordField:"password"
     },
     async (email,password,done) => {
         const normalEmail = email?.trim().toLowerCase()
-        const user = await userDAO.findEmail(normalEmail)
+        const user = await userRepository.findEmail(normalEmail)
         if (!user) {
             return done(null,false,"Credenciales invalidas")
         }
@@ -85,7 +85,7 @@ passport.use('current', new JwtStrategy(
     },
     async (payload,done) => {
         try {
-            const user = await UserDAO.findUserById(payload.id)
+            const user = await userRepository.findUserById(payload.id)
             if (!user) {
                 return done(null,false)
             }
